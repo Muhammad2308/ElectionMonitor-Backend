@@ -1,0 +1,9 @@
+HTTP/1.1 419 unknown status
+Host: 127.0.0.1:8000
+Connection: close
+X-Powered-By: PHP/8.2.12
+Cache-Control: no-cache, private
+date: Sun, 30 Aug 2026 14:36:48 GMT
+Content-Type: text/html; charset=utf-8
+Set-Cookie: election_intelligence_platform_session=eyJpdiI6Ikh5d0Y2YVB5Y1NQZlVSRUZML3dFcEE9PSIsInZhbHVlIjoiSWdubzdsUnZJeHFIbUplT1hzMlREQUtWL0JrKytPZDZ4eU14VW9QTVdtVmZvVWtQa3FEMlZvV0swcysrZG9HOWNRbFgyRWoyQldNMVROU0YxTFpOcWUvajduVjhFSmt0cGpqVGZXMGVUSC9Fa2pvNC9BT2MrZThtN0pUNnNDaEciLCJtYWMiOiJmYmYzYjU1M2Q5OTZmZTk4ZjIxMDA3ZDdkZTMyOGExZGRmOGNmN2ExMzBhYzJkMjlkYTRhY2ZhODAwODIyNmEwIiwidGFnIjoiIn0%3D; expires=Sun, 30 Aug 2026 16:36:48 GMT; Max-Age=7200; path=/; httponly; samesite=lax
+
