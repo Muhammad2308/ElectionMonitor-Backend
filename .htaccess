@@ -1,0 +1,17 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Handle Bearer Authorization Headers
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # Forward all traffic to public directory
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# Block direct access to hidden files (.env, .git, etc.)
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
