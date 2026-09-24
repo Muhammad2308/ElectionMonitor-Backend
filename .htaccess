@@ -10,6 +10,12 @@
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
 
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "*"
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, X-Device-ID, Accept, Origin"
+</IfModule>
+
 # Block direct access to hidden files (.env, .git, etc.)
 <FilesMatch "^\.">
     Order allow,deny
