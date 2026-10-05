@@ -18,7 +18,7 @@ class Incident extends Model
 
     protected $fillable = [
         'id',
-        'user_id',
+        'reporter_id',
         'polling_unit_id',
         'category_id',
         'severity',
@@ -64,7 +64,7 @@ class Incident extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'reporter_id');
     }
 
     public function pollingUnit()

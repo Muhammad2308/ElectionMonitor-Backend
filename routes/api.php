@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Modules\Authentication\Controllers\AuthController;
 use App\Modules\Authentication\Controllers\GoogleAuthController;
 use App\Modules\ReferenceData\Controllers\GeographyController;
+use App\Modules\ReferenceData\Controllers\PollingUnitSubmissionController;
 use App\Modules\Incidents\Controllers\IncidentController;
 use App\Modules\Observers\Controllers\CheckInController;
 use App\Modules\Observers\Controllers\LocationController;
@@ -17,6 +18,8 @@ use App\Modules\Audit\Controllers\AuditController;
 use App\Modules\Roles\Controllers\RoleController;
 use App\Modules\Roles\Controllers\PermissionController;
 use App\Modules\Dashboard\Controllers\DashboardController;
+use App\Modules\Inbox\Controllers\InboxController;
+use App\Modules\Elections\Controllers\ElectionScheduleController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,7 +36,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/geography/categories',  [GeographyController::class, 'categories']);
 
     // ── Protected ────────────────────────────────────────────────────
-    Route::middleware(['auth:sanctum', 'device.bind'])->group(function () {
+    Route::middleware(['auth:sanctum', 'device.bind', \App\Modules\Authentication\Middleware\SetPermissionsTeam::class])->group(function () {
 
         // Auth
         Route::post('/auth/logout', [AuthController::class, 'logout']);
@@ -57,6 +60,16 @@ Route::prefix('v1')->group(function () {
         Route::prefix('observers')->group(function () {
             Route::post('/check-in', [CheckInController::class, 'store']);
             Route::post('/location', [LocationController::class, 'store']);
+        });
+
+        // Polling unit location submissions (observer capture → admin review)
+        Route::prefix('polling-units/submissions')->group(function () {
+            Route::get('/mine',             [PollingUnitSubmissionController::class, 'mine']);
+            Route::get('/',                 [PollingUnitSubmissionController::class, 'index']);
+            Route::post('/',                [PollingUnitSubmissionController::class, 'store']);
+            Route::get('/{id}/photos/{photoId}', [PollingUnitSubmissionController::class, 'photo']);
+            Route::post('/{id}/approve',    [PollingUnitSubmissionController::class, 'approve']);
+            Route::post('/{id}/reject',     [PollingUnitSubmissionController::class, 'reject']);
         });
 
         // Assignments
@@ -111,6 +124,16 @@ Route::prefix('v1')->group(function () {
             Route::get('/observers', [ReportController::class, 'observers']);
             Route::get('/summary',   [ReportController::class, 'summary']);
         });
+
+        // Inbox (tenant-scoped notifications)
+        Route::prefix('inbox')->group(function () {
+            Route::get('/',              [InboxController::class, 'index']);
+            Route::post('/read-all',     [InboxController::class, 'markAllRead']);
+            Route::post('/{id}/read',    [InboxController::class, 'markRead']);
+        });
+
+        // Elections
+        Route::get('/elections/upcoming', [ElectionScheduleController::class, 'upcoming']);
 
         // Notifications
         Route::prefix('notifications')->group(function () {

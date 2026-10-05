@@ -46,9 +46,11 @@ class GISController extends Controller
      */
     public function observers(Request $request)
     {
-        $users = User::role(['observer', 'ward-supervisor', 'lga-supervisor'])
+        // Only observers check in / report GPS pings from the field under the
+        // v3 role set — state_admin and above don't hold observers.check-in.
+        $users = User::role('observer')
             ->with(['gpsLocations' => fn ($q) => $q->latest('captured_at')->limit(1)])
-            ->with(['checkIns' => fn ($q) => $q->latest('check_in_time')->limit(1)->with('pollingUnit')])
+            ->with(['checkIns' => fn ($q) => $q->latest('captured_at')->limit(1)->with('pollingUnit')])
             ->get()
             ->map(function (User $user) {
                 $lastLocation = $user->gpsLocations->first();
@@ -60,7 +62,7 @@ class GISController extends Controller
                     'status'         => $user->status,
                     'latitude'       => $lastLocation?->latitude ?? $lastCheckIn?->latitude,
                     'longitude'      => $lastLocation?->longitude ?? $lastCheckIn?->longitude,
-                    'last_seen_at'   => $lastLocation?->captured_at?->toIso8601String() ?? $lastCheckIn?->check_in_time?->toIso8601String(),
+                    'last_seen_at'   => $lastLocation?->captured_at?->toIso8601String() ?? $lastCheckIn?->captured_at?->toIso8601String(),
                     'polling_unit'   => $lastCheckIn?->pollingUnit?->name,
                     'is_online'      => $lastLocation && $lastLocation->captured_at->gt(now()->subMinutes(30)),
                 ];

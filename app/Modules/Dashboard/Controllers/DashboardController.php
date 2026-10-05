@@ -22,7 +22,7 @@ class DashboardController extends Controller
             'total_incidents'      => Incident::count(),
             'incidents_last_hour'  => $lastHour,
             'active_observers'     => User::role('observer')->whereHas('checkIns', function ($q) {
-                $q->where('check_in_time', '>=', now()->subHours(12));
+                $q->where('captured_at', '>=', now()->subHours(12));
             })->count(),
             'deployed_observers'   => User::role('observer')->count(),
             'open_incidents'       => Incident::open()->count(),
@@ -59,14 +59,14 @@ class DashboardController extends Controller
     public function activity(Request $request)
     {
         $checkIns = ObserverCheckIn::with(['user', 'pollingUnit'])
-            ->latest('check_in_time')
+            ->latest('captured_at')
             ->limit($request->integer('limit', 10))
             ->get()
             ->map(fn ($c) => [
                 'id'         => $c->id,
                 'title'      => ($c->user?->name ?? 'Observer') . " checked in at {$c->pollingUnit?->name}",
                 'status'     => 'submitted',
-                'created_at' => $c->check_in_time?->toIso8601String(),
+                'created_at' => $c->captured_at?->toIso8601String(),
             ]);
 
         return response()->json(['data' => $checkIns]);
@@ -81,7 +81,7 @@ class DashboardController extends Controller
             return [
                 'hour'      => $start->format('H:00'),
                 'incidents' => Incident::whereBetween('incident_time', [$start, $end])->count(),
-                'checkins'  => ObserverCheckIn::whereBetween('check_in_time', [$start, $end])->count(),
+                'checkins'  => ObserverCheckIn::whereBetween('captured_at', [$start, $end])->count(),
             ];
         });
 

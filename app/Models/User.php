@@ -45,17 +45,17 @@ class User extends Authenticatable
 
     public function incidents()
     {
-        return $this->hasMany(\App\Modules\Incidents\Models\Incident::class);
+        return $this->hasMany(\App\Modules\Incidents\Models\Incident::class, 'reporter_id');
     }
 
     public function assignments()
     {
-        return $this->hasMany(\App\Modules\Assignments\Models\ObserverAssignment::class);
+        return $this->hasMany(\App\Modules\Assignments\Models\ObserverAssignment::class, 'observer_id');
     }
 
     public function checkIns()
     {
-        return $this->hasMany(\App\Modules\Observers\Models\ObserverCheckIn::class);
+        return $this->hasMany(\App\Modules\Observers\Models\ObserverCheckIn::class, 'observer_id');
     }
 
     public function gpsLocations()

@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class ObserverAssignment extends Model
 {
-    protected $fillable = ['user_id', 'polling_unit_id', 'election_date'];
+    protected $fillable = ['tenant_id', 'observer_id', 'polling_unit_id', 'election_date', 'assigned_by'];
 
     protected $casts = [
         'election_date' => 'date',
@@ -16,7 +16,7 @@ class ObserverAssignment extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'observer_id');
     }
 
     public function pollingUnit()

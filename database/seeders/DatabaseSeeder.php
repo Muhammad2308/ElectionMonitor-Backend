@@ -17,7 +17,11 @@ class DatabaseSeeder extends Seeder
             \App\Modules\Roles\Seeders\RolesAndPermissionsSeeder::class,
             CategorySeeder::class,
             \App\Modules\ReferenceData\Seeders\ElectoralHierarchySeeder::class,
-            DemoDataSeeder::class,
         ]);
+
+        // Test tenants and accounts are opt-in so a production seed can't create them by accident.
+        if (filter_var(env('SEED_TEST_USERS', false), FILTER_VALIDATE_BOOLEAN)) {
+            $this->call([TenancyTestSeeder::class, ElectionScheduleTestSeeder::class]);
+        }
     }
 }

@@ -28,7 +28,7 @@ class IncidentController extends Controller
         $query = Incident::query()->with(['category', 'pollingUnit.ward.lga.state', 'user']);
 
         if (! $request->user()->can('incidents.view-all')) {
-            $query->where('user_id', $request->user()->id);
+            $query->where('reporter_id', $request->user()->id);
         }
 
         if ($request->filled('severity')) {

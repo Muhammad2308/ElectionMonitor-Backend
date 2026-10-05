@@ -15,7 +15,7 @@ class IncidentReportingService
         return DB::transaction(function () use ($data, $user) {
             return Incident::create([
                 'id'              => $data['id'] ?? Str::uuid()->toString(),
-                'user_id'         => $user->id,
+                'reporter_id'     => $user->id,
                 'polling_unit_id' => $data['polling_unit_id'],
                 'category_id'     => $data['category_id'],
                 'severity'        => $data['severity'] ?? 'medium',
@@ -34,11 +34,14 @@ class IncidentReportingService
         $path = $file->store("incidents/{$incident->id}", 'public');
 
         return IncidentMedia::create([
-            'id'          => Str::uuid()->toString(),
-            'incident_id' => $incident->id,
-            'media_type'  => $type,
-            'file_path'   => $path,
-            'file_hash'   => md5_file($file->path()),
+            'id'           => Str::uuid()->toString(),
+            'incident_id'  => $incident->id,
+            'storage_path' => $path,
+            'mime_type'    => $file->getMimeType(),
+            'size_bytes'   => $file->getSize(),
+            // sha256 (not md5) for evidence-integrity checking, computed
+            // from the uploaded file itself.
+            'sha256'       => hash_file('sha256', $file->getRealPath()),
         ]);
     }
 }

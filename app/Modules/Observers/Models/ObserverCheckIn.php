@@ -8,24 +8,32 @@ use Illuminate\Database\Eloquent\Model;
 
 class ObserverCheckIn extends Model
 {
+    // The underlying table was renamed observer_check_ins -> check_ins
+    // (2026_09_27_010020_add_tenant_to_check_ins_table).
+    protected $table = 'check_ins';
+
     protected $fillable = [
-        'user_id',
+        'uuid',
+        'observer_id',
         'polling_unit_id',
-        'check_in_time',
+        'captured_at',
+        'synced_at',
         'latitude',
         'longitude',
+        'accuracy_m',
         'distance_from_pu',
     ];
 
     protected $casts = [
-        'check_in_time' => 'datetime',
-        'latitude'      => 'float',
-        'longitude'     => 'float',
+        'captured_at' => 'datetime',
+        'synced_at'   => 'datetime',
+        'latitude'    => 'float',
+        'longitude'   => 'float',
     ];
 
     public function user()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'observer_id');
     }
 
     public function pollingUnit()

@@ -18,6 +18,8 @@ class AuthController extends Controller
             $request->password
         );
 
+        setPermissionsTeamId($user->tenant_id ?? 0);
+
         $token = $this->tokenService->createToken(
             $user,
             $request->device_name ?? 'Observer Device',
