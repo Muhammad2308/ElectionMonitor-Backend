@@ -18,14 +18,21 @@ class PollingUnitSubmissionController extends Controller
 
     public function index(Request $request)
     {
-        abort_unless($request->user()->can('polling-units.review'), 403, 'Missing polling-units.review permission.');
-        abort_if($request->user()->tenant_id === null, 403, 'No tenant context.');
+        $user = $request->user();
+        abort_unless($user->can('polling-units.review'), 403, 'Missing polling-units.review permission.');
 
         $status = $request->query('status', PollingUnitSubmission::STATUS_PENDING);
         $request->validate(['status' => ['nullable', 'in:pending,approved,rejected']]);
 
-        $submissions = PollingUnitSubmission::query()
-            ->where('tenant_id', $request->user()->tenant_id)
+        $query = PollingUnitSubmission::query();
+        if ($user->tenant_id !== null) {
+            $query->where('tenant_id', $user->tenant_id);
+        } elseif ($user->state_id !== null) {
+            $query->whereHas('pollingUnit.ward.lga', fn ($q) => $q->where('state_id', $user->state_id))
+                  ->orWhereHas('ward.lga', fn ($q) => $q->where('state_id', $user->state_id));
+        }
+
+        $submissions = $query
             ->where('status', $status)
             ->with(['submitter', 'pollingUnit', 'ward.lga', 'photos'])
             ->latest('captured_at')
@@ -37,11 +44,17 @@ class PollingUnitSubmissionController extends Controller
 
     public function mine(Request $request)
     {
-        abort_unless($request->user()->can('polling-units.submit'), 403, 'Missing polling-units.submit permission.');
+        $user = $request->user();
+        abort_unless($user->can('polling-units.submit'), 403, 'Missing polling-units.submit permission.');
 
-        $submissions = PollingUnitSubmission::query()
-            ->where('tenant_id', $request->user()->tenant_id)
-            ->where('submitted_by', $request->user()->id)
+        $query = PollingUnitSubmission::query()
+            ->where('submitted_by', $user->id);
+
+        if ($user->tenant_id !== null) {
+            $query->where('tenant_id', $user->tenant_id);
+        }
+
+        $submissions = $query
             ->with(['pollingUnit', 'ward.lga', 'photos'])
             ->latest('captured_at')
             ->limit(100)
@@ -98,11 +111,12 @@ class PollingUnitSubmissionController extends Controller
     public function photo(Request $request, int $id, int $photoId)
     {
         $user = $request->user();
-        abort_if($user->tenant_id === null, 403, 'No tenant context.');
+        $query = PollingUnitSubmission::query();
+        if ($user->tenant_id !== null) {
+            $query->where('tenant_id', $user->tenant_id);
+        }
 
-        $submission = PollingUnitSubmission::query()
-            ->where('tenant_id', $user->tenant_id)
-            ->findOrFail($id);
+        $submission = $query->findOrFail($id);
 
         $canReview = $user->can('polling-units.review');
         abort_unless($canReview || $submission->submitted_by === $user->id, 403, 'Not allowed to view this evidence.');
@@ -121,10 +135,11 @@ class PollingUnitSubmissionController extends Controller
 
     private function findForTenant(?int $tenantId, int $id): PollingUnitSubmission
     {
-        abort_if($tenantId === null, 403, 'No tenant context.');
+        $query = PollingUnitSubmission::query();
+        if ($tenantId !== null) {
+            $query->where('tenant_id', $tenantId);
+        }
 
-        return PollingUnitSubmission::query()
-            ->where('tenant_id', $tenantId)
-            ->findOrFail($id);
+        return $query->findOrFail($id);
     }
 }

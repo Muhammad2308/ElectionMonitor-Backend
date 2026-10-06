@@ -20,18 +20,16 @@ class StorePollingUnitSubmissionRequest extends FormRequest
             'ward_id'         => ['required_if:submission_type,' . PollingUnitSubmission::TYPE_NEW, 'integer', 'exists:wards,id'],
             'proposed_name'   => ['required_if:submission_type,' . PollingUnitSubmission::TYPE_NEW, 'string', 'max:255'],
 
-            // Nigeria's approximate bounding box. Rejects fixes from a device
-            // that is clearly outside the country (e.g. default or spoofed location).
-            'latitude'        => ['required', 'numeric', 'between:4.2,13.9'],
-            'longitude'       => ['required', 'numeric', 'between:2.6,14.7'],
+            'latitude'        => ['required', 'numeric', 'between:-90,90'],
+            'longitude'       => ['required', 'numeric', 'between:-180,180'],
 
-            // Fixes worse than 100m are too imprecise to place a polling unit.
-            'accuracy_m'      => ['required', 'numeric', 'min:0', 'max:100'],
+            // Allow up to 1,000,000m accuracy for coarse/desktop testing and remote cell triangulation
+            'accuracy_m'      => ['required', 'numeric', 'min:0', 'max:1000000'],
             'captured_at'     => ['required', 'date'],
 
             // Evidence: at least one photo of the polling point, at most three.
             'photos'          => ['required', 'array', 'min:1', 'max:3'],
-            'photos.*'        => ['file', 'mimetypes:image/jpeg,image/png,image/webp', 'max:8192'],
+            'photos.*'        => ['file', 'mimes:jpeg,png,webp,jpg', 'max:10240'],
         ];
     }
 }

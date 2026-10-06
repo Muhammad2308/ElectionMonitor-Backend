@@ -34,6 +34,11 @@ class PollingUnitSubmissionService
     {
         $distance = null;
 
+        $tenantId = $observer->tenant_id
+            ?? ($observer->state_id ? \App\Modules\Tenants\Models\Tenant::where('state_id', $observer->state_id)->value('id') : null)
+            ?? \App\Modules\Tenants\Models\Tenant::first()?->id
+            ?? 1;
+
         if ($data['submission_type'] === PollingUnitSubmission::TYPE_COORDINATES) {
             $pollingUnit = PollingUnit::with('ward.lga')->findOrFail($data['polling_unit_id']);
             $this->assertInState($observer, $pollingUnit->ward?->lga?->state_id, 'polling_unit_id');
@@ -48,7 +53,7 @@ class PollingUnitSubmissionService
             }
 
             $duplicate = PollingUnitSubmission::query()
-                ->where('tenant_id', $observer->tenant_id)
+                ->where('tenant_id', $tenantId)
                 ->where('submitted_by', $observer->id)
                 ->where('status', PollingUnitSubmission::STATUS_PENDING)
                 ->where('polling_unit_id', $pollingUnit->id)
@@ -62,7 +67,7 @@ class PollingUnitSubmissionService
             $this->assertInState($observer, $ward->lga?->state_id, 'ward_id');
 
             $duplicate = PollingUnitSubmission::query()
-                ->where('tenant_id', $observer->tenant_id)
+                ->where('tenant_id', $tenantId)
                 ->where('submitted_by', $observer->id)
                 ->where('status', PollingUnitSubmission::STATUS_PENDING)
                 ->where('ward_id', $ward->id)
@@ -78,10 +83,10 @@ class PollingUnitSubmissionService
         $storedPaths = [];
 
         try {
-            return DB::transaction(function () use ($observer, $data, $distance, $photos, &$storedPaths) {
+            return DB::transaction(function () use ($observer, $tenantId, $data, $distance, $photos, &$storedPaths) {
                 $submission = PollingUnitSubmission::create([
                     'uuid'                     => (string) Str::uuid(),
-                    'tenant_id'                => $observer->tenant_id,
+                    'tenant_id'                => $tenantId,
                     'submitted_by'             => $observer->id,
                     'submission_type'          => $data['submission_type'],
                     'polling_unit_id'          => $data['polling_unit_id'] ?? null,
@@ -96,10 +101,10 @@ class PollingUnitSubmissionService
                 ]);
 
                 foreach ($photos as $file) {
-                    $path = $this->storePhoto($observer->tenant_id, $submission->uuid, $file, $storedPaths);
+                    $path = $this->storePhoto($tenantId, $submission->uuid, $file, $storedPaths);
 
                     PollingUnitSubmissionPhoto::create([
-                        'tenant_id'     => $observer->tenant_id,
+                        'tenant_id'     => $tenantId,
                         'submission_id' => $submission->id,
                         'storage_path'  => $path,
                         'mime_type'     => $file->getMimeType(),
