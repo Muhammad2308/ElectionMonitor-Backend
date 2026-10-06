@@ -171,8 +171,14 @@ class RolesAndPermissionsSeeder extends Seeder
             'platform.manage_tenants',
             'platform.manage_schedules',
             'platform.purge_data',
-            'audit.view', // Can view platform audit logs
-            // Cannot view tenant data (incidents, assignments) without a grant
+            'users.view',
+            'users.create',
+            'users.update',
+            'users.suspend',
+            'users.delete',
+            'users.assign-role',
+            'polling-units.review',
+            'audit.view',
         ]);
 
         // ── Seed default Cybernet Superadmin user ──────────────────────────

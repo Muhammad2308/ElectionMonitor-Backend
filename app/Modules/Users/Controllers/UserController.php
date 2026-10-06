@@ -16,16 +16,32 @@ use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
-    private const TENANT_ROLES = ['observer', 'state_admin', 'state_master_admin'];
+    private const TENANT_ROLES = ['observer', 'state_admin', 'state_master_admin', 'national_master_admin', 'cybernet_superadmin'];
+
+    private function isSuperAdmin(?User $user): bool
+    {
+        if (!$user) return false;
+        return $user->role_type === 'cybernet_superadmin' || $user->hasRole('cybernet_superadmin');
+    }
 
     public function index(Request $request)
     {
-        abort_unless($request->user()->can('users.view'), 403);
+        $admin = $request->user();
+        abort_unless($this->isSuperAdmin($admin) || $admin->can('users.view'), 403);
 
         $query = User::with('state')->withCount(['incidents', 'assignments', 'checkIns']);
 
+        // Scope to tenant if not superadmin
+        if (!$this->isSuperAdmin($admin) && $admin->tenant_id !== null) {
+            $query->where('tenant_id', $admin->tenant_id);
+        }
+
         if ($request->filled('role')) {
-            $query->whereHas('roles', fn ($q) => $q->where('name', $request->string('role')));
+            $roleFilter = $request->string('role');
+            $query->where(function ($q) use ($roleFilter) {
+                $q->where('role_type', $roleFilter)
+                  ->orWhereHas('roles', fn ($r) => $r->where('name', $roleFilter));
+            });
         }
 
         if ($request->filled('status')) {
@@ -51,8 +67,8 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $admin = $request->user();
-        abort_unless($admin->can('users.create'), 403);
-        abort_if($admin->tenant_id === null, 403, 'Platform accounts cannot register tenant users.');
+        $isSuper = $this->isSuperAdmin($admin);
+        abort_unless($isSuper || $admin->can('users.create'), 403);
 
         $data = $request->validate([
             'name'     => ['required', 'string', 'max:255'],
@@ -63,21 +79,43 @@ class UserController extends Controller
             'role'     => ['required', 'string', Rule::in(self::TENANT_ROLES)],
         ]);
 
-        $allowedRoles = $admin->hasRole('state_admin') ? ['observer'] : self::TENANT_ROLES;
-        abort_unless(in_array($data['role'], $allowedRoles, true), 403, 'Your role cannot create this account type.');
-
-        $tenant = DB::table('tenants as t')
-            ->join('organisations as o', 'o.id', '=', 't.organisation_id')
-            ->where('t.id', $admin->tenant_id)
-            ->first(['t.id', 't.state_id', 't.organisation_id', 'o.short_code']);
-
-        $stateId = $tenant->state_id ?? $data['state_id'] ?? null;
-        if ($stateId === null) {
-            throw ValidationException::withMessages(['state_id' => ['A state is required for this account.']]);
+        if (!$isSuper) {
+            $allowedRoles = $admin->hasRole('state_admin') ? ['observer'] : ['observer', 'state_admin', 'state_master_admin'];
+            abort_unless(in_array($data['role'], $allowedRoles, true), 403, 'Your role cannot create this account type.');
         }
+
+        // Determine tenant & state
+        $stateId = $data['state_id'] ?? null;
+        $tenant = null;
+
+        if ($admin->tenant_id !== null) {
+            $tenant = DB::table('tenants as t')
+                ->join('organisations as o', 'o.id', '=', 't.organisation_id')
+                ->where('t.id', $admin->tenant_id)
+                ->first(['t.id', 't.state_id', 't.organisation_id', 'o.short_code']);
+            $stateId = $tenant->state_id ?? $stateId;
+        } else {
+            // Platform admin creating user
+            $tenantQuery = DB::table('tenants as t')
+                ->join('organisations as o', 'o.id', '=', 't.organisation_id');
+            if ($stateId) {
+                $tenant = (clone $tenantQuery)->where('t.state_id', $stateId)->first(['t.id', 't.state_id', 't.organisation_id', 'o.short_code']);
+            }
+            if (!$tenant) {
+                $tenant = $tenantQuery->first(['t.id', 't.state_id', 't.organisation_id', 'o.short_code']);
+            }
+        }
+
+        if ($stateId === null) {
+            $stateId = $tenant?->state_id ?? DB::table('states')->value('id');
+        }
+
+        $tenantId = $tenant?->id ?? 1;
+        $orgId = $tenant?->organisation_id ?? 1;
+        $shortCode = $tenant?->short_code ?? 'EIP';
         $stateCode = DB::table('states')->where('id', $stateId)->value('iso_code') ?? 'NG';
 
-        $user = DB::transaction(function () use ($data, $tenant, $stateId, $stateCode, $admin) {
+        $user = DB::transaction(function () use ($data, $tenantId, $orgId, $shortCode, $stateId, $stateCode, $admin) {
             $user = User::create([
                 'name'     => $data['name'],
                 'email'    => $data['email'],
@@ -87,38 +125,45 @@ class UserController extends Controller
                 'status'   => 'active',
             ]);
 
+            $supervisorId = ($admin->tenant_id !== null && (int)$admin->tenant_id === (int)$tenantId) ? $admin->id : null;
+
             $user->forceFill([
-                'tenant_id'       => $tenant->id,
-                'organisation_id' => $tenant->organisation_id,
+                'tenant_id'       => $tenantId,
+                'organisation_id' => $orgId,
                 'role_type'       => $data['role'],
-                'user_code'       => UserCodeGenerator::generate($tenant->id, $tenant->short_code, $stateCode, $data['role']),
-                'supervisor_id'   => $admin->id,
+                'user_code'       => UserCodeGenerator::generate($tenantId, $shortCode, $stateCode, $data['role']),
+                'supervisor_id'   => $supervisorId,
                 'created_by'      => $admin->id,
             ])->save();
 
-            setPermissionsTeamId($tenant->id);
+            setPermissionsTeamId($tenantId);
             $user->assignRole($data['role']);
-            setPermissionsTeamId($admin->tenant_id);
+            setPermissionsTeamId($admin->tenant_id ?? 0);
 
             return $user;
         });
 
         ActivityLog::record('user.created', 'User', (string) $user->id, [], array_diff_key($data, ['password' => true]));
 
-        app(InboxService::class)->notify(
-            $user,
-            'Welcome to ElectionWatch',
-            "{$admin->name} registered you as {$data['role']}. Your user code is {$user->user_code}.",
-            ['type' => 'account_created', 'user_code' => $user->user_code],
-            'high'
-        );
+        try {
+            app(InboxService::class)->notify(
+                $user,
+                'Welcome to ElectionWatch',
+                "{$admin->name} registered you as {$data['role']}. Your user code is {$user->user_code}.",
+                ['type' => 'account_created', 'user_code' => $user->user_code],
+                'high'
+            );
+        } catch (\Throwable $e) {
+            // Inbox notification is non-fatal
+        }
 
         return response()->json(['message' => 'User created.', 'user' => new UserResource($user->load('state'))], 201);
     }
 
     public function show(string $id)
     {
-        abort_unless(request()->user()->can('users.view'), 403);
+        $admin = request()->user();
+        abort_unless($this->isSuperAdmin($admin) || $admin->can('users.view'), 403);
 
         $user = User::with('state')->withCount(['incidents', 'assignments', 'checkIns'])->findOrFail($id);
 
@@ -127,7 +172,8 @@ class UserController extends Controller
 
     public function update(Request $request, string $id)
     {
-        abort_unless($request->user()->can('users.update'), 403);
+        $admin = $request->user();
+        abort_unless($this->isSuperAdmin($admin) || $admin->can('users.update'), 403);
 
         $user = User::findOrFail($id);
 
@@ -148,7 +194,8 @@ class UserController extends Controller
 
     public function destroy(string $id)
     {
-        abort_unless(request()->user()->can('users.delete'), 403);
+        $admin = request()->user();
+        abort_unless($this->isSuperAdmin($admin) || $admin->can('users.delete'), 403);
 
         $user = User::findOrFail($id);
         $user->delete();
@@ -160,7 +207,8 @@ class UserController extends Controller
 
     public function suspend(string $id)
     {
-        abort_unless(request()->user()->can('users.suspend'), 403);
+        $admin = request()->user();
+        abort_unless($this->isSuperAdmin($admin) || $admin->can('users.suspend'), 403);
 
         $user = User::findOrFail($id);
         $newStatus = $user->status === 'suspended' ? 'active' : 'suspended';
@@ -173,7 +221,8 @@ class UserController extends Controller
 
     public function assignRole(Request $request, string $id)
     {
-        abort_unless($request->user()->can('users.assign-role'), 403);
+        $admin = $request->user();
+        abort_unless($this->isSuperAdmin($admin) || $admin->can('users.assign-role'), 403);
 
         $data = $request->validate([
             'role' => ['required', 'string', 'exists:roles,name'],
@@ -181,6 +230,7 @@ class UserController extends Controller
 
         $user = User::findOrFail($id);
         $user->syncRoles([$data['role']]);
+        $user->update(['role_type' => $data['role']]);
 
         ActivityLog::record('user.role-assigned', 'User', (string) $user->id, [], $data);
 
