@@ -139,11 +139,21 @@ class PollingUnitSubmissionService
             $locked = PollingUnitSubmission::query()->lockForUpdate()->findOrFail($submission->id);
             $this->assertPending($locked);
 
+            $photo = $locked->photos()->first();
+            $photoPath = $photo?->storage_path;
+
             if ($locked->submission_type === PollingUnitSubmission::TYPE_COORDINATES) {
-                PollingUnit::whereKey($locked->polling_unit_id)->update([
-                    'latitude'  => $locked->latitude,
-                    'longitude' => $locked->longitude,
-                ]);
+                $puUpdates = [
+                    'latitude'      => $locked->latitude,
+                    'longitude'     => $locked->longitude,
+                    'is_registered' => true,
+                    'registered_at' => now(),
+                    'registered_by' => $reviewer->id,
+                ];
+                if ($photoPath) {
+                    $puUpdates['image_path'] = $photoPath;
+                }
+                PollingUnit::whereKey($locked->polling_unit_id)->update($puUpdates);
             } else {
                 if ($puCode === null) {
                     throw ValidationException::withMessages([
@@ -158,11 +168,15 @@ class PollingUnitSubmissionService
                 }
 
                 $created = PollingUnit::create([
-                    'ward_id'   => $locked->ward_id,
-                    'pu_code'   => $puCode,
-                    'name'      => $name ?? $locked->proposed_name,
-                    'latitude'  => $locked->latitude,
-                    'longitude' => $locked->longitude,
+                    'ward_id'       => $locked->ward_id,
+                    'pu_code'       => $puCode,
+                    'name'          => $name ?? $locked->proposed_name,
+                    'latitude'      => $locked->latitude,
+                    'longitude'     => $locked->longitude,
+                    'image_path'    => $photoPath,
+                    'is_registered' => true,
+                    'registered_at' => now(),
+                    'registered_by' => $reviewer->id,
                 ]);
 
                 $locked->polling_unit_id = $created->id;

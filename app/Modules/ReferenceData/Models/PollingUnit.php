@@ -6,12 +6,29 @@ use Illuminate\Database\Eloquent\Model;
 
 class PollingUnit extends Model
 {
-    protected $fillable = ['ward_id', 'pu_code', 'name', 'latitude', 'longitude'];
+    protected $fillable = [
+        'ward_id',
+        'pu_code',
+        'name',
+        'latitude',
+        'longitude',
+        'image_path',
+        'is_registered',
+        'registered_at',
+        'registered_by',
+    ];
 
     protected $casts = [
-        'latitude'  => 'float',
-        'longitude' => 'float',
+        'latitude'      => 'float',
+        'longitude'     => 'float',
+        'is_registered' => 'boolean',
+        'registered_at' => 'datetime',
     ];
+
+    public function registeredBy()
+    {
+        return $this->belongsTo(\App\Models\User::class, 'registered_by');
+    }
 
     public function ward()
     {

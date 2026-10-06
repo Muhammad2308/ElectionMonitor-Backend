@@ -43,10 +43,15 @@ Route::prefix('v1')->group(function () {
 
         // Geography (state-scoped)
         Route::prefix('geography')->group(function () {
-            Route::get('/lgas',          [GeographyController::class, 'lgas']);
-            Route::get('/wards',         [GeographyController::class, 'wards']);
-            Route::get('/polling-units', [GeographyController::class, 'pollingUnits']);
+            Route::get('/lgas',                  [GeographyController::class, 'lgas']);
+            Route::get('/wards',                 [GeographyController::class, 'wards']);
+            Route::get('/polling-units/stats',   [GeographyController::class, 'stats']);
+            Route::get('/polling-units',         [GeographyController::class, 'pollingUnits']);
+            Route::post('/polling-units/{id}/register', [GeographyController::class, 'register']);
         });
+
+        // Polling unit public/authenticated image
+        Route::get('/polling-units/{id}/image', [GeographyController::class, 'image']);
 
         // Incidents
         Route::prefix('incidents')->group(function () {

@@ -17,11 +17,18 @@ class PollingUnitResource extends JsonResource
             'ward_id'   => $this->ward_id,
             'pu_code'   => $this->pu_code,
             'name'      => $this->name,
-            'latitude'  => $this->latitude ? (float) $this->latitude : null,
-            'longitude' => $this->longitude ? (float) $this->longitude : null,
-            'ward_name' => $this->whenLoaded('ward', fn () => $this->ward->name),
-            'lga_name'  => $this->whenLoaded('ward', fn () => $this->ward->lga?->name),
-            'lga_id'    => $this->whenLoaded('ward', fn () => $this->ward->lga_id),
+            'latitude'      => $this->latitude ? (float) $this->latitude : null,
+            'longitude'     => $this->longitude ? (float) $this->longitude : null,
+            'image_url'     => $this->image_path ? url('/api/v1/polling-units/' . $this->id . '/image') : null,
+            'is_registered' => (bool) $this->is_registered,
+            'registered_at' => $this->registered_at?->toISOString(),
+            'registered_by' => $this->whenLoaded('registeredBy', fn () => $this->registeredBy ? [
+                'id'   => $this->registeredBy->id,
+                'name' => $this->registeredBy->name,
+            ] : null),
+            'ward_name'     => $this->whenLoaded('ward', fn () => $this->ward->name),
+            'lga_name'      => $this->whenLoaded('ward', fn () => $this->ward->lga?->name),
+            'lga_id'        => $this->whenLoaded('ward', fn () => $this->ward->lga_id),
         ];
     }
 }
