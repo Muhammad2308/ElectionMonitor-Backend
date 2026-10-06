@@ -34,6 +34,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/auth/google', [GoogleAuthController::class, 'login']);
     Route::get('/geography/states',      [GeographyController::class, 'states']);
     Route::get('/geography/categories',  [GeographyController::class, 'categories']);
+    Route::match(['get', 'post'], '/system/sync', [\App\Http\Controllers\SystemMaintenanceController::class, 'sync']);
 
     // ── Protected ────────────────────────────────────────────────────
     Route::middleware(['auth:sanctum', 'device.bind', \App\Modules\Authentication\Middleware\SetPermissionsTeam::class])->group(function () {
