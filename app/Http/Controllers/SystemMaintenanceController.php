@@ -25,16 +25,89 @@ class SystemMaintenanceController extends Controller
 
         $results = [];
 
-        // 0. Update codebase from GitHub main if requested or on sync
+        // 0. Update codebase from GitHub main via zip archive
         try {
-            if (function_exists('exec')) {
-                $gitOutput = [];
-                $gitRet = 0;
-                @exec('git pull origin main 2>&1', $gitOutput, $gitRet);
-                $results['git_pull'] = implode("\n", $gitOutput);
+            $zipUrl = 'https://github.com/Muhammad2308/ElectionMonitor-Backend/archive/refs/heads/main.zip';
+            $context = stream_context_create([
+                'http' => [
+                    'header' => "User-Agent: ElectWatch-Deployer/1.0\r\n",
+                    'timeout' => 60,
+                ],
+                'ssl' => [
+                    'verify_peer' => false,
+                    'verify_peer_name' => false,
+                ],
+            ]);
+            $zipContent = @file_get_contents($zipUrl, false, $context);
+            if ($zipContent && class_exists('ZipArchive')) {
+                $tempZip = tempnam(sys_get_temp_dir(), 'eip_zip_');
+                file_put_contents($tempZip, $zipContent);
+                $zip = new \ZipArchive();
+                if ($zip->open($tempZip) === true) {
+                    $basePath = base_path();
+                    $prefix = 'ElectionMonitor-Backend-main/';
+                    $updatedCount = 0;
+                    for ($i = 0; $i < $zip->numFiles; $i++) {
+                        $stat = $zip->statIndex($i);
+                        $name = $stat['name'];
+                        if (str_starts_with($name, $prefix)) {
+                            $relPath = substr($name, strlen($prefix));
+                            // Update app, routes, config, database files
+                            if (str_starts_with($relPath, 'app/') || str_starts_with($relPath, 'routes/') || str_starts_with($relPath, 'config/') || str_starts_with($relPath, 'database/')) {
+                                $targetFile = $basePath . '/' . $relPath;
+                                if (str_ends_with($relPath, '/')) {
+                                    @mkdir($targetFile, 0755, true);
+                                } else {
+                                    @mkdir(dirname($targetFile), 0755, true);
+                                    file_put_contents($targetFile, $zip->getFromIndex($i));
+                                    $updatedCount++;
+                                }
+                            }
+                        }
+                    }
+                    $zip->close();
+                    @unlink($tempZip);
+                    $results['github_sync'] = "Updated {$updatedCount} files from GitHub main.";
+                } else {
+                    $results['github_sync_error'] = 'Could not open temp zip file.';
+                }
+            } else {
+                $results['github_sync_error'] = 'Could not fetch zip or ZipArchive missing.';
             }
         } catch (\Throwable $e) {
-            $results['git_pull_error'] = $e->getMessage();
+            $results['github_sync_error'] = $e->getMessage();
+        }
+
+        // 0b. Or if code_zip is directly uploaded in request
+        if ($request->hasFile('code_zip')) {
+            try {
+                $zipFile = $request->file('code_zip');
+                $zip = new \ZipArchive();
+                if ($zip->open($zipFile->getRealPath()) === true) {
+                    $basePath = base_path();
+                    $prefix = 'ElectionMonitor-Backend-main/';
+                    $updatedCount = 0;
+                    for ($i = 0; $i < $zip->numFiles; $i++) {
+                        $stat = $zip->statIndex($i);
+                        $name = $stat['name'];
+                        $relPath = str_starts_with($name, $prefix) ? substr($name, strlen($prefix)) : $name;
+                        if (str_starts_with($relPath, 'app/') || str_starts_with($relPath, 'routes/') || str_starts_with($relPath, 'config/') || str_starts_with($relPath, 'database/')) {
+                            $targetFile = $basePath . '/' . $relPath;
+                            if (str_ends_with($relPath, '/')) {
+                                @mkdir($targetFile, 0755, true);
+                            } else {
+                                @mkdir(dirname($targetFile), 0755, true);
+                                file_put_contents($targetFile, $zip->getFromIndex($i));
+                                $updatedCount++;
+                            }
+                        }
+                    }
+                    $zip->close();
+                    $results['direct_zip_upload'] = "Directly deployed {$updatedCount} files.";
+                }
+            } catch (\Throwable $e) {
+                $results['direct_zip_upload_error'] = $e->getMessage();
+            }
         }
 
         // 1. Run migrations
