@@ -25,90 +25,44 @@ class SystemMaintenanceController extends Controller
 
         $results = [];
 
-        // 0. Update codebase from GitHub main via zip archive
-        try {
-            $zipUrl = 'https://github.com/Muhammad2308/ElectionMonitor-Backend/archive/refs/heads/main.zip';
-            $context = stream_context_create([
-                'http' => [
-                    'header' => "User-Agent: ElectWatch-Deployer/1.0\r\n",
-                    'timeout' => 60,
-                ],
-                'ssl' => [
-                    'verify_peer' => false,
-                    'verify_peer_name' => false,
-                ],
-            ]);
-            $zipContent = @file_get_contents($zipUrl, false, $context);
-            if ($zipContent && class_exists('ZipArchive')) {
-                $tempZip = tempnam(sys_get_temp_dir(), 'eip_zip_');
-                file_put_contents($tempZip, $zipContent);
-                $zip = new \ZipArchive();
-                if ($zip->open($tempZip) === true) {
-                    $basePath = base_path();
-                    $prefix = 'ElectionMonitor-Backend-main/';
-                    $updatedCount = 0;
-                    for ($i = 0; $i < $zip->numFiles; $i++) {
-                        $stat = $zip->statIndex($i);
-                        $name = $stat['name'];
-                        if (str_starts_with($name, $prefix)) {
-                            $relPath = substr($name, strlen($prefix));
-                            // Update app, routes, config, database files
-                            if (str_starts_with($relPath, 'app/') || str_starts_with($relPath, 'routes/') || str_starts_with($relPath, 'config/') || str_starts_with($relPath, 'database/')) {
-                                $targetFile = $basePath . '/' . $relPath;
-                                if (str_ends_with($relPath, '/')) {
-                                    @mkdir($targetFile, 0755, true);
-                                } else {
-                                    @mkdir(dirname($targetFile), 0755, true);
-                                    file_put_contents($targetFile, $zip->getFromIndex($i));
-                                    $updatedCount++;
-                                }
-                            }
-                        }
-                    }
-                    $zip->close();
-                    @unlink($tempZip);
-                    $results['github_sync'] = "Updated {$updatedCount} files from GitHub main.";
-                } else {
-                    $results['github_sync_error'] = 'Could not open temp zip file.';
-                }
-            } else {
-                $results['github_sync_error'] = 'Could not fetch zip or ZipArchive missing.';
-            }
-        } catch (\Throwable $e) {
-            $results['github_sync_error'] = $e->getMessage();
-        }
+        // 0. Update core files directly from GitHub raw
+        $rawBase = 'https://raw.githubusercontent.com/Muhammad2308/ElectionMonitor-Backend/main/';
+        $filesToSync = [
+            'app/Modules/ReferenceData/Requests/StorePollingUnitSubmissionRequest.php',
+            'app/Modules/ReferenceData/Controllers/PollingUnitSubmissionController.php',
+            'app/Modules/ReferenceData/Services/PollingUnitSubmissionService.php',
+            'app/Modules/Roles/Seeders/RolesAndPermissionsSeeder.php',
+            'app/Http/Controllers/SystemMaintenanceController.php',
+            'routes/api.php',
+        ];
 
-        // 0b. Or if code_zip is directly uploaded in request
-        if ($request->hasFile('code_zip')) {
+        $updatedFiles = [];
+        $basePath = base_path();
+        $ctx = stream_context_create([
+            'http' => [
+                'header' => "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64)\r\n",
+                'timeout' => 15,
+            ],
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+            ],
+        ]);
+
+        foreach ($filesToSync as $rel) {
             try {
-                $zipFile = $request->file('code_zip');
-                $zip = new \ZipArchive();
-                if ($zip->open($zipFile->getRealPath()) === true) {
-                    $basePath = base_path();
-                    $prefix = 'ElectionMonitor-Backend-main/';
-                    $updatedCount = 0;
-                    for ($i = 0; $i < $zip->numFiles; $i++) {
-                        $stat = $zip->statIndex($i);
-                        $name = $stat['name'];
-                        $relPath = str_starts_with($name, $prefix) ? substr($name, strlen($prefix)) : $name;
-                        if (str_starts_with($relPath, 'app/') || str_starts_with($relPath, 'routes/') || str_starts_with($relPath, 'config/') || str_starts_with($relPath, 'database/')) {
-                            $targetFile = $basePath . '/' . $relPath;
-                            if (str_ends_with($relPath, '/')) {
-                                @mkdir($targetFile, 0755, true);
-                            } else {
-                                @mkdir(dirname($targetFile), 0755, true);
-                                file_put_contents($targetFile, $zip->getFromIndex($i));
-                                $updatedCount++;
-                            }
-                        }
-                    }
-                    $zip->close();
-                    $results['direct_zip_upload'] = "Directly deployed {$updatedCount} files.";
+                $content = @file_get_contents($rawBase . $rel, false, $ctx);
+                if ($content && strlen($content) > 20) {
+                    $dest = $basePath . '/' . $rel;
+                    @mkdir(dirname($dest), 0755, true);
+                    file_put_contents($dest, $content);
+                    $updatedFiles[] = $rel;
                 }
             } catch (\Throwable $e) {
-                $results['direct_zip_upload_error'] = $e->getMessage();
+                $results['sync_error_' . $rel] = $e->getMessage();
             }
         }
+        $results['raw_github_sync'] = $updatedFiles;
 
         // 1. Run migrations
         try {
