@@ -25,6 +25,18 @@ class SystemMaintenanceController extends Controller
 
         $results = [];
 
+        // 0. Update codebase from GitHub main if requested or on sync
+        try {
+            if (function_exists('exec')) {
+                $gitOutput = [];
+                $gitRet = 0;
+                @exec('git pull origin main 2>&1', $gitOutput, $gitRet);
+                $results['git_pull'] = implode("\n", $gitOutput);
+            }
+        } catch (\Throwable $e) {
+            $results['git_pull_error'] = $e->getMessage();
+        }
+
         // 1. Run migrations
         try {
             Artisan::call('migrate', ['--force' => true]);
