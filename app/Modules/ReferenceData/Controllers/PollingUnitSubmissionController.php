@@ -45,7 +45,13 @@ class PollingUnitSubmissionController extends Controller
     public function mine(Request $request)
     {
         $user = $request->user();
-        abort_unless($user->can('polling-units.submit'), 403, 'Missing polling-units.submit permission.');
+        abort_unless(
+            $user->can('polling-units.submit')
+            || $user->can('polling-units.review')
+            || in_array($user->role_type, ['cybernet_superadmin', 'national_master_admin', 'state_master_admin', 'state_admin', 'observer']),
+            403,
+            'Missing polling-units.submit permission.'
+        );
 
         $query = PollingUnitSubmission::query()
             ->where('submitted_by', $user->id);

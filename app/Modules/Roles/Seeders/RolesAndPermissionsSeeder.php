@@ -104,6 +104,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'gis.view',
             'notifications.view',
             'reports.view',
+            'polling-units.submit',
             'polling-units.review',
         ]);
 
@@ -132,6 +133,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'notifications.send',
             'support_access.grant',
             'audit.view',
+            'polling-units.submit',
             'polling-units.review',
         ]);
 
@@ -161,6 +163,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'notifications.send',
             'support_access.grant',
             'audit.view',
+            'polling-units.submit',
             'polling-units.review',
         ]);
 
@@ -177,6 +180,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'users.suspend',
             'users.delete',
             'users.assign-role',
+            'polling-units.submit',
             'polling-units.review',
             'audit.view',
         ]);

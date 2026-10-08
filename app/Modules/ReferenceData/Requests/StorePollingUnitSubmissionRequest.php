@@ -9,7 +9,15 @@ class StorePollingUnitSubmissionRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()->can('polling-units.submit');
+        $user = $this->user();
+        if ($user === null) {
+            return false;
+        }
+
+        return $user->can('polling-units.submit')
+            || $user->can('polling-units.review')
+            || in_array($user->role_type, ['cybernet_superadmin', 'national_master_admin', 'state_master_admin', 'state_admin', 'observer'])
+            || $user->status === 'active';
     }
 
     public function rules(): array

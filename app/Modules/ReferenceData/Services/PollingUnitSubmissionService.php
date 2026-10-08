@@ -247,7 +247,12 @@ class PollingUnitSubmissionService
 
     private function assertInState(User $observer, ?int $stateId, string $field): void
     {
-        if ($observer->state_id !== null && $stateId !== $observer->state_id) {
+        // Platform superadmins and reviewers can test/submit for any state
+        if ($observer->can('polling-units.review') || in_array($observer->role_type, ['cybernet_superadmin', 'national_master_admin']) || $observer->state_id === null) {
+            return;
+        }
+
+        if ($stateId !== null && $stateId !== $observer->state_id) {
             throw ValidationException::withMessages([
                 $field => ['This location is outside your assigned state.'],
             ]);
