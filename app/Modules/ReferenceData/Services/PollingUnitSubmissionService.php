@@ -35,8 +35,8 @@ class PollingUnitSubmissionService
         $distance = null;
 
         $tenantId = $observer->tenant_id
-            ?? ($observer->state_id ? \App\Modules\Tenants\Models\Tenant::where('state_id', $observer->state_id)->value('id') : null)
-            ?? \App\Modules\Tenants\Models\Tenant::first()?->id
+            ?? ($observer->state_id ? DB::table('tenants')->where('state_id', $observer->state_id)->value('id') : null)
+            ?? DB::table('tenants')->value('id')
             ?? 1;
 
         if ($data['submission_type'] === PollingUnitSubmission::TYPE_COORDINATES) {
